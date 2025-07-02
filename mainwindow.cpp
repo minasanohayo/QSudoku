@@ -53,8 +53,15 @@ void MainWindow::process()
     std::vector<std::vector<cv::Mat>> cells;
     cells.clear();
 
-    pretreatmentBINARY(_warp, _bin);
+    // pretreatmentBINARY(_warp, _bin);
+    get_warp(_bin, _bin, conPoly);
+    qint64 bin_warp = timer.elapsed(); // 返回毫秒
+    timer.start();
+
     get_cels(_bin, cells);
+
+    qint64 get_cels_elapsed = timer.elapsed(); // 返回毫秒
+    timer.start();
 
     cv::Mat _cellsMap = print_cels(cells);
 
@@ -64,13 +71,14 @@ void MainWindow::process()
     // ui->graphicsView_4->setPixmap(cvMatToQPixmap(_cellsMap));
 
     frame.release();
-    qDebug() << pretreatmentelapsed << " " << get_contourelapsed << " " << get_warpelapsed;
+    qDebug() << pretreatmentelapsed << get_contourelapsed << get_warpelapsed << bin_warp << get_cels_elapsed;
 }
 
 cv::Mat MainWindow::read_a_frame()
 {
     cv::Mat frame;
-
+    if (img.empty())
+        return frame;
     int originalWidth = img.cols;
     int originalHeight = img.rows;
     // uvcCap >> frame;
@@ -79,9 +87,13 @@ cv::Mat MainWindow::read_a_frame()
         int newWidth = static_cast<int>(originalWidth * scale);
         int newHeight = static_cast<int>(originalHeight * scale);
 
-        cv::resize(img, img, cv::Size(newWidth, newHeight));
+        cv::resize(img, frame, cv::Size(newWidth, newHeight));
+    } else {
+        frame = img.clone();
     }
-    return img;
+    img.release();
+
+    return frame;
 }
 
 int MainWindow::pretreatment(cv::Mat& src, cv::Mat& dstEdge, cv::Mat& bin)
@@ -243,8 +255,8 @@ int MainWindow::get_cels(cv::Mat& frame, std::vector<std::vector<cv::Mat>>& cell
 
             // row.push_back(frame(roi).clone()); // 对的
 
-            cv::Mat bit;
-            cv::threshold(frame, bit, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU); // 二值化为0-255图
+            cv::Mat bit = frame.clone();
+            // cv::threshold(frame, bit, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU); // 二值化为0-255图
             row.push_back(bit(roi).clone()); //  不行
         }
         cells.push_back(row);
@@ -301,12 +313,15 @@ int MainWindow::blobAnalyze(cv::Mat& binary, cv::Mat& dst)
         float width = binary.size().width;
         float height = binary.size().height;
 
-        if (cx < width * 0.3 || cx > width * 0.7 || cy < height * 0.3 || cy > height * 0.7)
+        if (cx < width * 0.25 || cx > width * 0.75 || cy < height * 0.25 || cy > height * 0.75)
+            continue;
+        if (stats.at<float>(i, cv::CC_STAT_WIDTH) / stats.at<float>(i, cv::CC_STAT_HEIGHT) > 1.5)
             continue;
         int x = fmax(0, stats.at<int>(i, cv::CC_STAT_LEFT) - 2);
         int y = fmax(0, stats.at<int>(i, cv::CC_STAT_TOP) - 2);
-        int w = fmin(width, stats.at<int>(i, cv::CC_STAT_WIDTH) + 3);
-        int h = fmin(height, stats.at<int>(i, cv::CC_STAT_HEIGHT) + 4);
+        int w = fmin(width - x, stats.at<int>(i, cv::CC_STAT_WIDTH) + 2);
+        int h = fmin(height - y, stats.at<int>(i, cv::CC_STAT_HEIGHT) + 2);
+        keepOnlyBoxArea(dst, cv::Rect(x, y, w, h));
         if (w == width || h == height)
             continue;
 
@@ -350,10 +365,10 @@ int MainWindow::blobAnalyze(cv::Mat& binary, cv::Mat& dst)
 
             if (cx < width * 0.3 || cx > width * 0.7 || cy < height * 0.3 || cy > height * 0.7)
                 continue;
-            int x = stats.at<int>(i, cv::CC_STAT_LEFT) - 2;
-            int y = stats.at<int>(i, cv::CC_STAT_TOP) - 2;
-            int w = stats.at<int>(i, cv::CC_STAT_WIDTH) + 3;
-            int h = stats.at<int>(i, cv::CC_STAT_HEIGHT) + 4;
+            int x = fmax(0, stats.at<int>(i, cv::CC_STAT_LEFT) - 2);
+            int y = fmax(0, stats.at<int>(i, cv::CC_STAT_TOP) - 2);
+            int w = fmin(width - x, stats.at<int>(i, cv::CC_STAT_WIDTH) + 3);
+            int h = fmin(height - y, stats.at<int>(i, cv::CC_STAT_HEIGHT) + 4);
             keepOnlyBoxArea(dst, cv::Rect(x, y, w, h));
             cv::rectangle(dst, cv::Rect(x, y, w, h), cv::Scalar(0, 255, 0), 2);
 
@@ -388,13 +403,16 @@ void MainWindow::keepOnlyBoxArea(cv::Mat& mat, const cv::Rect& box)
     CV_Assert(mat.data); // 检查是否为空
 
     // 创建与 mat 相同大小、同类型的全 0 图像
-    cv::Mat mask = cv::Mat::zeros(mat.size(), mat.type());
+    try {
+        cv::Mat mask = cv::Mat::zeros(mat.size(), mat.type());
 
-    // 将 box 区域复制回去
-    mat(box).copyTo(mask(box));
-
-    // 用结果替换原图
-    mat = mask;
+        // 将 box 区域复制回去
+        mat(box).copyTo(mask(box));
+        // 用结果替换原图
+        mat = mask;
+    } catch (std::exception& e) {
+        std::cout << box << " " << mat.size() << std::endl;
+    }
 }
 
 void MainWindow::matToQImg(cv::Mat& input, QImage& output, QImage::Format format)

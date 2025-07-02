@@ -15,11 +15,14 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
     QGraphicsScene scene;
     QGraphicsPixmapItem pixmapItem;
 
+    void setHorScrollValue(int x);
+    void setVerScrollValue(int y);
     //    void scrollContentsBy(int dx, int dy) override
     //    {
 

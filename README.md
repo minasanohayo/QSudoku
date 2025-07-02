@@ -1,2 +1,2 @@
-QT Sudoku Solution With Opencv & C++
+# QT Sudoku Solution With Opencv & C++
 
