@@ -10,7 +10,19 @@ CONFIG += c++17
 
 #不带cuda
 INCLUDEPATH += D:\openCV\build-opencv-4.10.0-MSVC2019-Debug\install\include
-LIBS += D:\openCV\build-opencv-4.10.0-MSVC2019-Debug\install\x64\vc17\lib\opencv_*
+
+Debug: {
+LIBS += -LD:/openCV/build-opencv-4.10.0-MSVC2019-Debug/install/x64/vc17/lib
+LIBS += -lopencv_core4100d \
+        -lopencv_videostab4100d \
+        -lopencv_world4100d
+}
+Release: {
+LIBS += -LD:/openCV/build-opencv-4.10.0-MSVC2019-Debug/install/x64/vc17/lib
+LIBS += -lopencv_core4100 \
+        -lopencv_videostab4100 \
+        -lopencv_world4100
+}
 
 
 SOURCES += \
@@ -33,4 +45,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
-    README.md
+    README.md \
+    test.png
